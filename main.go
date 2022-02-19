@@ -7,6 +7,7 @@ import (
 	"github.com/ton3s/orchestrator/node"
 	"github.com/ton3s/orchestrator/task"
 
+	"github.com/docker/docker/client"
 	"github.com/golang-collections/collections/queue"
 	"github.com/google/uuid"
 
@@ -14,7 +15,45 @@ import (
 	"github.com/ton3s/orchestrator/worker"
 )
 
+func createContainer() (*task.Docker, *task.DockerResult) {
+	c := task.Config{
+		Name:  "test-container-1",
+		Image: "postgres:13",
+		Env: []string{
+			"POSTGRES_USER=cube",
+			"POSTGRES_PASSWORD=secret",
+		},
+	}
+
+	dc, _ := client.NewClientWithOpts(client.FromEnv)
+	d := task.Docker{
+		Client: dc,
+		Config: c,
+	}
+
+	result := d.Run()
+	if result.Error != nil {
+		fmt.Printf("%v\n", result.Error)
+		return nil, nil
+	}
+
+	fmt.Printf("Container %s is running with config %v\n", result.ContainerId, c)
+	return &d, &result
+}
+
+func stopContainer(d *task.Docker) *task.DockerResult {
+	result := d.Stop(d.ContainerId)
+	if result.Error != nil {
+		fmt.Printf("%v\n", result.Error)
+		return nil
+	}
+
+	fmt.Printf("Container %s has been stopped and removed\n", d.ContainerId)
+	return &result
+}
+
 func main() {
+	// Define a task
 	t := task.Task{
 		ID:     uuid.New(),
 		Name:   "Task-1",
@@ -24,6 +63,7 @@ func main() {
 		Disk:   1,
 	}
 
+	// Initiate a change of state
 	te := task.TaskEvent{
 		ID:        uuid.New(),
 		State:     task.Pending,
@@ -66,4 +106,12 @@ func main() {
 	}
 
 	fmt.Printf("node: %v\n", n)
+
+	fmt.Printf("create a test container\n")
+	dockerTask, createResult := createContainer()
+
+	time.Sleep(time.Second * 5)
+
+	fmt.Printf("stopping container %s\n", createResult.ContainerId)
+	_ = stopContainer(dockerTask)
 }
