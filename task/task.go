@@ -17,24 +17,15 @@ import (
 	"github.com/moby/moby/pkg/stdcopy"
 )
 
-type State int
-
-const (
-	Pending State = iota
-	Scheduled
-	Running
-	Completed
-	Failed
-)
-
 type Task struct {
 	ID            uuid.UUID
+	ContainerID   string
 	Name          string
 	State         State
 	Image         string
 	Cpu           float64
-	Memory        int
-	Disk          int
+	Memory        int64
+	Disk          int64
 	ExposedPorts  nat.PortSet
 	PortBindings  map[string]string
 	RestartPolicy string
@@ -66,10 +57,33 @@ type Config struct {
 	RestartPolicy string   // always | unless-stopped | on-failure
 }
 
+// Convert a task to a configuration
+func NewConfig(t *Task) *Config {
+	return &Config{
+		Name:          t.Name,
+		ExposedPorts:  t.ExposedPorts,
+		Image:         t.Image,
+		Cpu:           t.Cpu,
+		Memory:        t.Memory,
+		Disk:          t.Disk,
+		RestartPolicy: t.RestartPolicy,
+	}
+}
+
+// Worker uses this struct to start and stop containers
 type Docker struct {
 	Client      *client.Client // docker client
 	Config      Config
 	ContainerId string
+}
+
+// Instantiate a Docker API client
+func NewDocker(c *Config) *Docker {
+	dc, _ := client.NewClientWithOpts(client.FromEnv)
+	return &Docker{
+		Client: dc,
+		Config: *c,
+	}
 }
 
 // Return value in methods that start and stop containers
